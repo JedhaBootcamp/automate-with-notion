@@ -1,0 +1,58 @@
+name: Notion → RDS ETL
+
+on:
+  # Manual trigger (from the "Actions" tab)
+  workflow_dispatch:
+
+  # ───────────────────────────────────────────────
+  # Optional: scheduled trigger (disabled for now)
+  # Uncomment to run daily at 03:00 UTC
+  #
+  # schedule:
+  #   - cron: "0 3 * * *"
+  # ───────────────────────────────────────────────
+
+jobs:
+  run-etl:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        # Prefer your pinned requirements. The fallback installs ensure
+        # psycopg2 and dateutil are present even if requirements.txt is minimal.
+        run: |
+          pip install -r requirements.txt || true
+          pip install --upgrade pip
+          pip install pandas sqlalchemy psycopg2-binary python-dateutil requests
+
+      - name: Run Notion → RDS ETL
+        env:
+          # Notion
+          NOTION_TOKEN:           ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID:     ${{ secrets.NOTION_DATABASE_ID }}
+          NOTION_VERSION:         ${{ secrets.NOTION_VERSION }} # optional (defaults to 2022-06-28)
+
+          # PostgreSQL RDS
+          PG_HOST:                ${{ secrets.PG_HOST }}
+          PG_PORT:                ${{ secrets.PG_PORT }}        # e.g., 5432
+          PG_DB:                  ${{ secrets.PG_DB }}          # e.g., finance (or postgres)
+          PG_USER:                ${{ secrets.PG_USER }}
+          PG_PASSWORD:            ${{ secrets.PG_PASSWORD }}
+          PG_TABLE:               ${{ secrets.PG_TABLE }}       # e.g., campaigns
+          PG_IF_EXISTS:           ${{ secrets.PG_IF_EXISTS }}   # replace | append | fail (use replace if unsure)
+          PG_CHUNKSIZE:           ${{ secrets.PG_CHUNKSIZE }}   # e.g., 1000
+
+          # Logging (optional)
+          LOG_LEVEL:              ${{ vars.LOG_LEVEL || 'INFO' }}
+        run: |
+          echo "🚀 Launching Notion → RDS ETL..."
+          python etl_notion_to_rds.py
+          echo "✅ ETL completed"
